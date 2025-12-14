@@ -46,7 +46,7 @@ def pcm16_to_float32(pcm16: bytes) -> np.ndarray:
     Returns:
         Float32 numpy array normalized to [-1, 1]
     """
-    audio = np.frombuffer(pcm16, dtype=np.int16).astype(np.float32) / 32768.0
+    audio = np.frombuffer(pcm16, dtype=np.int16).astype(np.float32) / 32767.0
     return audio
 
 

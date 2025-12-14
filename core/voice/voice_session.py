@@ -114,8 +114,11 @@ class VoiceSession:
             logger.info(
                 f"Finalizing session with {len(self.turn_pcm16)} bytes of buffered audio"
             )
-            # Convert buffered PCM16 to float32
-            audio_f32 = pcm16_to_float32(bytes(self.turn_pcm16))
+            # Convert buffered PCM16 to float32 (avoid copy by using np.frombuffer)
+            audio_f32 = (
+                np.frombuffer(self.turn_pcm16, dtype=np.int16).astype(np.float32)
+                / 32767.0
+            )
             # Force transcription
             return await self._finalize_turn(audio_f32)
         return None
@@ -184,8 +187,11 @@ class VoiceSession:
             Final transcript if end-of-turn, None otherwise
         """
         try:
-            # Convert buffered PCM16 to float32 for Smart Turn check
-            audio_buffer = pcm16_to_float32(bytes(self.turn_pcm16))
+            # Convert buffered PCM16 to float32 for Smart Turn check (avoid copy)
+            audio_buffer = (
+                np.frombuffer(self.turn_pcm16, dtype=np.int16).astype(np.float32)
+                / 32767.0
+            )
 
             # Get last N seconds for Smart Turn (increased context window)
             check_duration = min(

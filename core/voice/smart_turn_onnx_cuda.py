@@ -125,8 +125,10 @@ class SmartTurnCuda:
             # Convert to probability
             # If output is logits (unbounded), apply sigmoid
             if y > 1.0 or y < 0.0:
-                # Likely logits, apply sigmoid
-                p = float(1.0 / (1.0 + np.exp(-y)))
+                # Likely logits, apply sigmoid with numerical stability
+                # Clamp to avoid overflow: exp(-x) overflows for very large x
+                y_clamped = np.clip(y, -100, 100)
+                p = float(1.0 / (1.0 + np.exp(-y_clamped)))
             else:
                 # Already a probability
                 p = float(y)
