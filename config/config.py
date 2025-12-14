@@ -31,7 +31,7 @@ class VoiceConfig:
 
     # Voice session configuration
     buffer_max_seconds: float = 30.0
-    turn_check_seconds: float = 2.0
+    turn_check_seconds: float = 8.0  # Increased from 2.0 for better Smart Turn context
 
 
 @dataclass

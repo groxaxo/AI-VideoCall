@@ -60,5 +60,5 @@ def float32_to_pcm16(audio: np.ndarray) -> bytes:
         PCM16 audio data as bytes
     """
     audio_clipped = np.clip(audio, -1.0, 1.0)
-    pcm16 = (audio_clipped * 32768.0).astype(np.int16)
+    pcm16 = (audio_clipped * 32767.0).astype(np.int16)
     return pcm16.tobytes()

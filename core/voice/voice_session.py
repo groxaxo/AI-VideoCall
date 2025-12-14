@@ -17,6 +17,9 @@ from .vad_gate import VADConfig, VADGate
 
 logger = logging.getLogger(__name__)
 
+# Global ASR lock to prevent concurrent transcription calls
+_asr_lock = asyncio.Lock()
+
 
 class VoiceSessionState(str, Enum):
     """Voice session states."""
@@ -32,7 +35,7 @@ class VoiceSessionConfig:
 
     sample_rate: int = 16000
     buffer_max_seconds: float = 30.0  # Maximum audio buffer
-    turn_check_seconds: float = 2.0  # Seconds of audio to check for turn
+    turn_check_seconds: float = 8.0  # Seconds of audio to check for turn (increased from 2.0)
     enable_smart_turn: bool = True  # Enable Smart Turn detection
     
     # Note: Component-specific configs (SmartTurnCudaConfig, ParakeetConfig, VADConfig) 
@@ -76,8 +79,8 @@ class VoiceSession:
         self.smart_turn = smart_turn
         self.parakeet_asr = parakeet_asr
 
-        # Current turn buffer (for accumulating speech)
-        self.current_turn_audio = []
+        # Current turn buffer (using bytearray for efficient PCM16 storage)
+        self.turn_pcm16 = bytearray()
         self.turn_start_time = None
 
         logger.info("VoiceSession initialized")
@@ -86,7 +89,7 @@ class VoiceSession:
         """Start voice session (listening mode)."""
         self.state = VoiceSessionState.LISTENING
         self.ring_buffer.clear()
-        self.current_turn_audio = []
+        self.turn_pcm16 = bytearray()
         self.vad.reset()
         self.turn_start_time = time.time()
         logger.info("Voice session started")
@@ -94,8 +97,24 @@ class VoiceSession:
     def stop(self):
         """Stop voice session."""
         self.state = VoiceSessionState.IDLE
-        self.current_turn_audio = []
+        self.turn_pcm16 = bytearray()
         logger.info("Voice session stopped")
+
+    async def finalize(self) -> Optional[str]:
+        """
+        Finalize the session and transcribe any buffered audio.
+        Should be called on voice_stop or disconnect to avoid losing the last utterance.
+        
+        Returns:
+            Final transcript if audio was buffered, None otherwise
+        """
+        if len(self.turn_pcm16) > 0:
+            logger.info(f"Finalizing session with {len(self.turn_pcm16)} bytes of buffered audio")
+            # Convert buffered PCM16 to float32
+            audio_f32 = pcm16_to_float32(bytes(self.turn_pcm16))
+            # Force transcription
+            return await self._finalize_turn(audio_f32)
+        return None
 
     async def push_pcm16(self, pcm16: bytes) -> Optional[str]:
         """
@@ -111,21 +130,21 @@ class VoiceSession:
             return None
 
         try:
-            # Convert to float32
+            # Convert to float32 for processing
             audio_f32 = pcm16_to_float32(pcm16)
 
             # Add to ring buffer
             self.ring_buffer.append(audio_f32)
 
-            # Add to current turn buffer
-            self.current_turn_audio.append(audio_f32)
+            # Add to current turn buffer (store raw PCM16 for efficiency)
+            self.turn_pcm16.extend(pcm16)
 
             # Process with VAD
             is_speech, pause_detected = self._process_vad(audio_f32)
 
             # If pause detected, check for end of turn
-            if pause_detected and len(self.current_turn_audio) > 0:
-                logger.info("Pause detected, checking for end of turn...")
+            if pause_detected and len(self.turn_pcm16) > 0:
+                logger.debug("Pause detected, checking for end of turn...")
                 return await self._check_end_of_turn()
 
             return None
@@ -161,10 +180,10 @@ class VoiceSession:
             Final transcript if end-of-turn, None otherwise
         """
         try:
-            # Get audio for Smart Turn check
-            audio_buffer = np.concatenate(self.current_turn_audio)
+            # Convert buffered PCM16 to float32 for Smart Turn check
+            audio_buffer = pcm16_to_float32(bytes(self.turn_pcm16))
 
-            # Get last N seconds for Smart Turn
+            # Get last N seconds for Smart Turn (increased context window)
             check_duration = min(self.config.turn_check_seconds, len(audio_buffer) / self.config.sample_rate)
             check_samples = int(check_duration * self.config.sample_rate)
             audio_to_check = audio_buffer[-check_samples:] if len(audio_buffer) > check_samples else audio_buffer
@@ -176,13 +195,13 @@ class VoiceSession:
                 is_end_of_turn, confidence = self.smart_turn.is_end_of_turn(
                     audio_to_check
                 )
-                logger.info(
+                logger.debug(
                     f"Smart Turn result: is_end={is_end_of_turn}, confidence={confidence:.3f}"
                 )
             else:
                 # Without Smart Turn, treat any pause as end of turn
                 is_end_of_turn = True
-                logger.info("Smart Turn disabled, treating pause as end of turn")
+                logger.debug("Smart Turn disabled, treating pause as end of turn")
 
             if is_end_of_turn:
                 return await self._finalize_turn(audio_buffer)
@@ -211,30 +230,33 @@ class VoiceSession:
             if self.parakeet_asr is not None:
                 # Convert to PCM16 for ASR
                 audio_clipped = np.clip(audio, -1.0, 1.0)
-                pcm16 = (audio_clipped * 32768.0).astype(np.int16).tobytes()
+                pcm16 = (audio_clipped * 32767.0).astype(np.int16).tobytes()
 
-                # Transcribe
-                transcript = self.parakeet_asr.transcribe_pcm16(
-                    pcm16, sr=self.config.sample_rate
-                )
+                # Transcribe in background thread with lock to avoid blocking and concurrent calls
+                async with _asr_lock:
+                    transcript = await asyncio.to_thread(
+                        self.parakeet_asr.transcribe_pcm16,
+                        pcm16,
+                        sr=self.config.sample_rate
+                    )
 
                 logger.info(f"Transcript: {transcript}")
 
                 # Reset for next turn
-                self.current_turn_audio = []
+                self.turn_pcm16 = bytearray()
                 self.state = VoiceSessionState.LISTENING
                 self.turn_start_time = time.time()
 
                 return transcript if transcript else None
             else:
                 logger.warning("Parakeet ASR not available")
-                self.current_turn_audio = []
+                self.turn_pcm16 = bytearray()
                 self.state = VoiceSessionState.LISTENING
                 return None
 
         except Exception as e:
             logger.error(f"Error finalizing turn: {e}")
-            self.current_turn_audio = []
+            self.turn_pcm16 = bytearray()
             self.state = VoiceSessionState.LISTENING
             return None
 

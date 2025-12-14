@@ -141,4 +141,4 @@ class ParakeetASR:
         """Cleanup resources."""
         if hasattr(self, "model"):
             del self.model
-            torch.cuda.empty_cache()
+            # Note: Removed torch.cuda.empty_cache() as it's a performance footgun in destructors
