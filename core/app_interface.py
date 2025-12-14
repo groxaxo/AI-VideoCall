@@ -256,7 +256,7 @@ class RealVideoApp:
             except Exception as e:
                 logger.exception(f"Exception in Client {client_id}: {e}")
                 logger.exception(traceback.format_exc())
-                
+
             finally:
                 # Clean up voice session if exists
                 if client_id in self.voice_sessions:
@@ -265,13 +265,17 @@ class RealVideoApp:
                         # Finalize to transcribe any buffered audio
                         transcript = await voice_session.finalize()
                         if transcript:
-                            logger.info(f"Final transcript on disconnect for client {client_id}: {transcript}")
+                            logger.info(
+                                f"Final transcript on disconnect for client {client_id}: {transcript}"
+                            )
                         voice_session.stop()
                         del self.voice_sessions[client_id]
                         logger.info(f"Voice session cleaned up for client {client_id}")
                     except Exception as cleanup_error:
-                        logger.error(f"Error cleaning up voice session for client {client_id}: {cleanup_error}")
-                
+                        logger.error(
+                            f"Error cleaning up voice session for client {client_id}: {cleanup_error}"
+                        )
+
                 # Clean up websocket connections
                 await self.lip_sync_manager.disconnect_websocket()
                 self.connection_manager.disconnect(client_id)
@@ -286,9 +290,13 @@ class RealVideoApp:
                 # Handle binary messages (voice PCM16 data)
                 if msg["type"] == "websocket.receive" and "bytes" in msg:
                     if self.voice_enabled:
-                        await self._handle_voice_binary(msg["bytes"], websocket, client_id)
+                        await self._handle_voice_binary(
+                            msg["bytes"], websocket, client_id
+                        )
                     else:
-                        logger.warning("Received binary voice data but voice is disabled")
+                        logger.warning(
+                            "Received binary voice data but voice is disabled"
+                        )
                     continue
 
                 # Handle text messages (JSON)
@@ -433,20 +441,22 @@ class RealVideoApp:
         try:
             if client_id in self.voice_sessions:
                 voice_session = self.voice_sessions[client_id]
-                
+
                 # Finalize session to transcribe any buffered audio
                 transcript = await voice_session.finalize()
-                
+
                 # Stop and cleanup session
                 voice_session.stop()
                 del self.voice_sessions[client_id]
-                
+
                 logger.info(f"Voice session stopped for client {client_id}")
 
                 # If we got a final transcript, process it
                 if transcript:
-                    logger.info(f"Final voice transcript for client {client_id}: {transcript}")
-                    
+                    logger.info(
+                        f"Final voice transcript for client {client_id}: {transcript}"
+                    )
+
                     # Inject transcript as a text message into the existing pipeline
                     text_message = {
                         "type": "text",

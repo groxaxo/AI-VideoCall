@@ -35,10 +35,12 @@ class VoiceSessionConfig:
 
     sample_rate: int = 16000
     buffer_max_seconds: float = 30.0  # Maximum audio buffer
-    turn_check_seconds: float = 8.0  # Seconds of audio to check for turn (increased from 2.0)
+    turn_check_seconds: float = (
+        8.0  # Seconds of audio to check for turn (increased from 2.0)
+    )
     enable_smart_turn: bool = True  # Enable Smart Turn detection
-    
-    # Note: Component-specific configs (SmartTurnCudaConfig, ParakeetConfig, VADConfig) 
+
+    # Note: Component-specific configs (SmartTurnCudaConfig, ParakeetConfig, VADConfig)
     # can be passed to VoiceSession constructor directly if customization is needed
 
 
@@ -60,7 +62,7 @@ class VoiceSession:
     ):
         """
         Initialize voice session.
-        
+
         Args:
             config: VoiceSessionConfig
             smart_turn: Optional SmartTurnCuda instance (shared across sessions)
@@ -104,12 +106,14 @@ class VoiceSession:
         """
         Finalize the session and transcribe any buffered audio.
         Should be called on voice_stop or disconnect to avoid losing the last utterance.
-        
+
         Returns:
             Final transcript if audio was buffered, None otherwise
         """
         if len(self.turn_pcm16) > 0:
-            logger.info(f"Finalizing session with {len(self.turn_pcm16)} bytes of buffered audio")
+            logger.info(
+                f"Finalizing session with {len(self.turn_pcm16)} bytes of buffered audio"
+            )
             # Convert buffered PCM16 to float32
             audio_f32 = pcm16_to_float32(bytes(self.turn_pcm16))
             # Force transcription
@@ -119,10 +123,10 @@ class VoiceSession:
     async def push_pcm16(self, pcm16: bytes) -> Optional[str]:
         """
         Push PCM16 audio chunk and process.
-        
+
         Args:
             pcm16: PCM16 audio data as bytes
-            
+
         Returns:
             Final transcript if end-of-turn detected, None otherwise
         """
@@ -156,10 +160,10 @@ class VoiceSession:
     def _process_vad(self, audio: np.ndarray) -> tuple[bool, bool]:
         """
         Process audio with VAD.
-        
+
         Args:
             audio: Audio samples (float32)
-            
+
         Returns:
             Tuple of (is_speech, pause_detected)
         """
@@ -175,7 +179,7 @@ class VoiceSession:
     async def _check_end_of_turn(self) -> Optional[str]:
         """
         Check if current audio represents end of turn.
-        
+
         Returns:
             Final transcript if end-of-turn, None otherwise
         """
@@ -184,9 +188,16 @@ class VoiceSession:
             audio_buffer = pcm16_to_float32(bytes(self.turn_pcm16))
 
             # Get last N seconds for Smart Turn (increased context window)
-            check_duration = min(self.config.turn_check_seconds, len(audio_buffer) / self.config.sample_rate)
+            check_duration = min(
+                self.config.turn_check_seconds,
+                len(audio_buffer) / self.config.sample_rate,
+            )
             check_samples = int(check_duration * self.config.sample_rate)
-            audio_to_check = audio_buffer[-check_samples:] if len(audio_buffer) > check_samples else audio_buffer
+            audio_to_check = (
+                audio_buffer[-check_samples:]
+                if len(audio_buffer) > check_samples
+                else audio_buffer
+            )
 
             is_end_of_turn = False
 
@@ -216,10 +227,10 @@ class VoiceSession:
     async def _finalize_turn(self, audio: np.ndarray) -> Optional[str]:
         """
         Finalize turn and get transcript.
-        
+
         Args:
             audio: Full audio of the turn (float32)
-            
+
         Returns:
             Final transcript
         """
@@ -237,7 +248,7 @@ class VoiceSession:
                     transcript = await asyncio.to_thread(
                         self.parakeet_asr.transcribe_pcm16,
                         pcm16,
-                        sr=self.config.sample_rate
+                        sr=self.config.sample_rate,
                     )
 
                 logger.info(f"Transcript: {transcript}")
