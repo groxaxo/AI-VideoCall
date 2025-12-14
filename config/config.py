@@ -12,6 +12,29 @@ class AudioConfig:
 
 
 @dataclass
+class VoiceConfig:
+    """Configuration for voice input processing."""
+
+    enabled: bool = False  # Voice input disabled by default
+    device_id: int = 0  # GPU 0 for voice (interface GPU)
+    sample_rate: int = 16000
+
+    # Smart Turn configuration
+    smart_turn_enabled: bool = True
+    smart_turn_onnx_path: str = "models/smart_turn/smart-turn-v3.1-gpu.onnx"
+    smart_turn_threshold: float = 0.5
+
+    # Parakeet ASR configuration
+    parakeet_model_name: str = "nvidia/parakeet-tdt-0.6b-v3"
+    parakeet_device: str = "cuda:0"
+    parakeet_use_amp: bool = True
+
+    # Voice session configuration
+    buffer_max_seconds: float = 30.0
+    turn_check_seconds: float = 2.0
+
+
+@dataclass
 class VideoConfig:
     fps: int = 16
 
@@ -66,6 +89,7 @@ class Config:
         self.video = VideoConfig()
         self.server = ServerConfig()
         self.lip_sync = LipSyncConfig()
+        self.voice = VoiceConfig()
 
         self._load_from_env()
 
@@ -82,6 +106,17 @@ class Config:
         self.lip_sync.audio_min_length = (
             4 * self.lip_sync.dit_config.num_frame_per_block
         )  # in frames, (4 for vae)
+
+        # Voice configuration from environment
+        self.voice.enabled = os.getenv("VOICE_ENABLED", "false").lower() == "true"
+        self.voice.device_id = int(os.getenv("VOICE_GPU", "0"))
+        self.voice.smart_turn_enabled = (
+            os.getenv("SMART_TURN_ENABLED", "true").lower() == "true"
+        )
+        self.voice.smart_turn_onnx_path = os.getenv(
+            "SMART_TURN_ONNX_PATH", self.voice.smart_turn_onnx_path
+        )
+        self.voice.parakeet_device = f"cuda:{self.voice.device_id}"
 
 
 config = Config()

@@ -36,8 +36,9 @@ nvidia-pyindex
 nvidia-tensorrt
 pycuda
 onnx
-onnxruntime
+onnxruntime-gpu
 onnxscript
 onnxconverter_common
 flask
 flask-socketio
+nemo_toolkit[asr]

@@ -21,6 +21,7 @@ import logging
 import time
 import traceback
 import uuid
+from typing import Optional
 
 from config.config import config
 
@@ -50,9 +51,62 @@ class RealVideoApp:
         self.last_ws_message_time = None
         self.ws_lifecheck_task = None
 
+        # Voice processing components (initialized lazily if enabled)
+        self.voice_enabled = config.voice.enabled
+        self.smart_turn = None
+        self.parakeet_asr = None
+        self.voice_sessions = {}  # client_id -> VoiceSession
+
+        if self.voice_enabled:
+            self._init_voice_components()
+
         self._setup_routes()
 
         logger.info("Initialization finished.")
+
+    def _init_voice_components(self):
+        """Initialize voice processing components if voice is enabled."""
+        try:
+            from .voice import (
+                ParakeetASR,
+                ParakeetConfig,
+                SmartTurnCuda,
+                SmartTurnCudaConfig,
+            )
+
+            logger.info("Initializing voice components...")
+
+            # Initialize Smart Turn if enabled
+            if config.voice.smart_turn_enabled and os.path.exists(
+                config.voice.smart_turn_onnx_path
+            ):
+                smart_turn_cfg = SmartTurnCudaConfig(
+                    onnx_path=config.voice.smart_turn_onnx_path,
+                    device_id=config.voice.device_id,
+                    threshold=config.voice.smart_turn_threshold,
+                    sample_rate=config.voice.sample_rate,
+                )
+                self.smart_turn = SmartTurnCuda(smart_turn_cfg)
+                logger.info("Smart Turn initialized")
+            else:
+                logger.warning(
+                    f"Smart Turn disabled or ONNX model not found at {config.voice.smart_turn_onnx_path}"
+                )
+
+            # Initialize Parakeet ASR
+            parakeet_cfg = ParakeetConfig(
+                model_name=config.voice.parakeet_model_name,
+                device=config.voice.parakeet_device,
+                use_amp=config.voice.parakeet_use_amp,
+                sample_rate=config.voice.sample_rate,
+            )
+            self.parakeet_asr = ParakeetASR(parakeet_cfg)
+            logger.info("Parakeet ASR initialized")
+
+        except Exception as e:
+            logger.error(f"Failed to initialize voice components: {e}")
+            logger.warning("Voice input will be disabled")
+            self.voice_enabled = False
 
     def allowed_file(self, filename, file_type="img"):
         return (
@@ -199,11 +253,17 @@ class RealVideoApp:
             except WebSocketDisconnect:
                 await self.lip_sync_manager.disconnect_websocket()
                 self.connection_manager.disconnect(client_id)
+                # Clean up voice session if exists
+                if client_id in self.voice_sessions:
+                    del self.voice_sessions[client_id]
                 logger.info(f"Client {client_id} disconnected")
 
             except Exception as e:
                 await self.lip_sync_manager.disconnect_websocket()
                 self.connection_manager.disconnect(client_id)
+                # Clean up voice session if exists
+                if client_id in self.voice_sessions:
+                    del self.voice_sessions[client_id]
 
                 logger.exception(f"Exception in Client {client_id}: {e}")
                 logger.exception(traceback.format_exc())
@@ -211,8 +271,23 @@ class RealVideoApp:
     async def _handle_websocket_connection(self, websocket: WebSocket, client_id: int):
         while True:
             try:
-                data = await websocket.receive_text()
+                # Receive message - can be text or binary
+                msg = await websocket.receive()
                 self.last_ws_message_time = time.time()
+
+                # Handle binary messages (voice PCM16 data)
+                if msg["type"] == "websocket.receive" and "bytes" in msg:
+                    if self.voice_enabled:
+                        await self._handle_voice_binary(msg["bytes"], websocket, client_id)
+                    else:
+                        logger.warning("Received binary voice data but voice is disabled")
+                    continue
+
+                # Handle text messages (JSON)
+                if "text" not in msg:
+                    continue
+
+                data = msg["text"]
                 message_data = json.loads(data)
                 logger.info(message_data)
 
@@ -220,7 +295,13 @@ class RealVideoApp:
                     f"Received message from client {client_id}: {message_data.get('type', 'unknown')}"
                 )
 
-                if message_data["type"] in {"text", "audio"}:
+                # Handle voice control messages
+                if message_data["type"] == "voice_start":
+                    await self._handle_voice_start(message_data, websocket, client_id)
+                elif message_data["type"] == "voice_stop":
+                    await self._handle_voice_stop(message_data, websocket, client_id)
+                # Handle existing message types
+                elif message_data["type"] in {"text", "audio"}:
                     await self._handle_text_audio_message(
                         message_data, websocket, client_id
                     )
@@ -283,6 +364,128 @@ class RealVideoApp:
             voice_id=voice_id,
             websocket=websocket,
         )
+
+    async def _handle_voice_start(
+        self, message_data: dict, websocket: WebSocket, client_id: int
+    ):
+        """Handle voice_start control message."""
+        if not self.voice_enabled:
+            error_data = {
+                "type": "voice_error",
+                "error": "Voice input is not enabled",
+                "timestamp": time.time(),
+            }
+            await websocket.send_text(json.dumps(error_data))
+            return
+
+        try:
+            from .voice import VoiceSession, VoiceSessionConfig
+
+            # Create voice session for this client
+            session_cfg = VoiceSessionConfig(
+                sample_rate=config.voice.sample_rate,
+                buffer_max_seconds=config.voice.buffer_max_seconds,
+                turn_check_seconds=config.voice.turn_check_seconds,
+                enable_smart_turn=config.voice.smart_turn_enabled,
+            )
+
+            voice_session = VoiceSession(
+                config=session_cfg,
+                smart_turn=self.smart_turn,
+                parakeet_asr=self.parakeet_asr,
+            )
+            voice_session.start()
+
+            self.voice_sessions[client_id] = voice_session
+
+            logger.info(f"Voice session started for client {client_id}")
+
+            # Send acknowledgment
+            response_data = {
+                "type": "voice_started",
+                "message": "Voice recording started",
+                "timestamp": time.time(),
+            }
+            await websocket.send_text(json.dumps(response_data))
+
+        except Exception as e:
+            logger.error(f"Error starting voice session: {e}")
+            error_data = {
+                "type": "voice_error",
+                "error": f"Failed to start voice session: {str(e)}",
+                "timestamp": time.time(),
+            }
+            await websocket.send_text(json.dumps(error_data))
+
+    async def _handle_voice_stop(
+        self, message_data: dict, websocket: WebSocket, client_id: int
+    ):
+        """Handle voice_stop control message."""
+        try:
+            if client_id in self.voice_sessions:
+                self.voice_sessions[client_id].stop()
+                del self.voice_sessions[client_id]
+                logger.info(f"Voice session stopped for client {client_id}")
+
+                # Send acknowledgment
+                response_data = {
+                    "type": "voice_stopped",
+                    "message": "Voice recording stopped",
+                    "timestamp": time.time(),
+                }
+                await websocket.send_text(json.dumps(response_data))
+
+        except Exception as e:
+            logger.error(f"Error stopping voice session: {e}")
+
+    async def _handle_voice_binary(
+        self, pcm16_data: bytes, websocket: WebSocket, client_id: int
+    ):
+        """Handle binary voice data (PCM16 audio chunks)."""
+        try:
+            if client_id not in self.voice_sessions:
+                logger.warning(
+                    f"Received voice data for client {client_id} without active session"
+                )
+                return
+
+            voice_session = self.voice_sessions[client_id]
+
+            # Process audio chunk and check for transcript
+            transcript = await voice_session.push_pcm16(pcm16_data)
+
+            if transcript:
+                logger.info(f"Voice transcript for client {client_id}: {transcript}")
+
+                # Inject transcript as a text message into the existing pipeline
+                text_message = {
+                    "type": "text",
+                    "text": transcript,
+                    "profile": "",
+                    "timestamp": time.time(),
+                }
+
+                # Send transcript notification to client
+                transcript_data = {
+                    "type": "voice_transcript",
+                    "text": transcript,
+                    "timestamp": time.time(),
+                }
+                await websocket.send_text(json.dumps(transcript_data))
+
+                # Process as normal text message
+                await self._handle_text_audio_message(
+                    text_message, websocket, client_id
+                )
+
+        except Exception as e:
+            logger.error(f"Error handling voice binary data: {e}")
+            error_data = {
+                "type": "voice_error",
+                "error": f"Failed to process voice data: {str(e)}",
+                "timestamp": time.time(),
+            }
+            await websocket.send_text(json.dumps(error_data))
 
     async def _handle_ping_message(self, websocket: WebSocket, client_id: int):
         pong_data = {"type": "pong", "timestamp": time.time(), "client_id": client_id}
