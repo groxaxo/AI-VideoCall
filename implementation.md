@@ -57,7 +57,7 @@ This PR introduces a comprehensive voice input system with the following key fea
 
 **Changes:** Fixed `WORLD_SIZE=1` handling for single GPU mode
 
-**Lines changed:** 7 additions, 2 deletions
+**Lines changed:** 9 lines modified (7 additions, 2 deletions)
 
 ```python
 # BEFORE:
@@ -1017,9 +1017,9 @@ class ParakeetASR:
 
             # Resample if needed
             if sr != self.cfg.sample_rate:
-                # Simple linear interpolation resampling
-                # Note: For production, consider using librosa.resample or 
-                # scipy.signal.resample for higher quality resampling
+                # Simple linear interpolation resampling.
+                # Note: For production, consider using librosa.resample or
+                # scipy.signal.resample for higher quality resampling.
                 duration = len(audio) / sr
                 target_length = int(duration * self.cfg.sample_rate)
                 indices = np.linspace(0, len(audio) - 1, target_length)
@@ -1126,8 +1126,9 @@ class VoiceSessionConfig:
     turn_check_seconds: float = 2.0  # Seconds of audio to check for turn
     enable_smart_turn: bool = True  # Enable Smart Turn detection
     
-    # Note: Component-specific configs (SmartTurnCudaConfig, ParakeetConfig, VADConfig) 
-    # can be passed to VoiceSession constructor directly if customization is needed
+    # Note: Component-specific configs (SmartTurnCudaConfig, ParakeetConfig,
+    # VADConfig) can be passed to VoiceSession constructor directly if
+    # customization is needed
 
 
 class VoiceSession:
@@ -1789,10 +1790,10 @@ class VoiceConfig:
 ## Summary Statistics
 
 ### Files Modified: 4
-- `app.py` (7 additions, 2 deletions)
+- `app.py` (9 lines modified: 7 additions, 2 deletions)
 - `config/config.py` (35 additions, 0 deletions)
-- `core/app_interface.py` (206 additions, 2 deletions)
-- `requirements.txt` (3 additions, 2 deletions)
+- `core/app_interface.py` (208 lines modified: 206 additions, 2 deletions)
+- `requirements.txt` (5 lines modified: 3 additions, 2 deletions)
 
 ### New Core Modules: 8
 - `core/voice/__init__.py` (17 lines)
