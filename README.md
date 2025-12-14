@@ -1,9 +1,21 @@
-# RealVideo
+```
+   ___  _____   _   _ _     _            ___      _ _ 
+  / _ \|_   _| | | | (_)   | |          / __\__ _| | |
+ / /_\ \ | |   | | | | | __| | ___  ___/ /  / _` | | |
+ |  _  | | |   | | | | |/ _` |/ _ \/ __/ /__| (_| | | |
+ | | | |_| |_  \ \_/ / | (_| |  __/ \__\____/\__,_|_|_|
+ \_| |_/\___/   \___/|_|\__,_|\___|\___/
+```
 
-RealVideo is a WebSocket-based video calling system that supports text input. It leverages **GLM-4.5-AirX** and 
-**GLM-TTS** models to generate audio responses and utilizes autoregressive diffusion to generate corresponding 
-video frames. The system features a modular design with full functionality and a clean code structure.
-Visit [blog](https://z.ai/blog/realvideo) here!
+# AI VideoCall
+
+**AI VideoCall** is an enhanced WebSocket-based video calling system with advanced features. Originally based on 
+**RealVideo** by [Zhipu AI](https://z.ai/blog/realvideo), this fork adds local CUDA-based voice input, improved 
+real-time processing, and a more powerful conversational AI experience.
+
+The system leverages **GLM-4.5-AirX** and **GLM-TTS** models to generate audio responses and utilizes autoregressive 
+diffusion to generate corresponding video frames in real-time. It now includes optional local voice input with 
+Smart Turn end-of-turn detection and Parakeet ASR for speech recognition.
 
 ## Example Video
 
@@ -24,11 +36,23 @@ Visit [blog](https://z.ai/blog/realvideo) here!
 
 ## Features
 
-- **Text Input**: Supports text message input.
-- **Voice Input** (Optional): Local CUDA-based speech recognition with Smart Turn and Parakeet ASR.
-- **AI Voice Response**: Integrates GLM-4.5-AirX and GLM-TTS models to generate voice responses.
-- **Lip Sync**: Generates real-time conversational video based on any input image and audio.
-- **Real-time Communication**: WebSocket-based real-time bidirectional communication.
+### Core Features
+- **Text Input**: Fast and responsive text message input interface.
+- **AI Voice Response**: Integrates GLM-4.5-AirX and GLM-TTS models to generate natural voice responses.
+- **Lip Sync Video**: Generates real-time conversational video based on any input image and audio.
+- **Real-time Communication**: WebSocket-based real-time bidirectional communication with low latency.
+- **Custom Avatars**: Upload any image to use as the video avatar.
+- **Voice Cloning**: Upload audio samples (3+ seconds) for custom voice cloning.
+
+### Advanced Features (New in This Fork)
+- **Local Voice Input** 🎤: Optional CUDA-based speech recognition
+  - **Smart Turn v3.x**: GPU-accelerated end-of-turn detection
+  - **Parakeet ASR**: High-quality local speech recognition with NeMo
+  - **Energy-based VAD**: Voice activity detection with pause detection
+  - **No External APIs**: All processing done locally on your GPU
+- **Modular Architecture**: Clean code structure with separated concerns
+- **Single or Multi-GPU Support**: Runs on 1 or 2 GPUs with automatic workload distribution
+- **Production Ready**: Comprehensive error handling, logging, and documentation
 
 ## Download
 
@@ -126,6 +150,60 @@ For complete voice input documentation, configuration options, and WebSocket pro
 
 ## Acknowledgements
 
-This project utilizes the following open-source libraries:
+### Original Project
+This project is based on **RealVideo** by [**Zhipu AI**](https://z.ai/) (智谱AI).
 
-- [self forcing](https://github.com/guandeh17/Self-Forcing)
+**RealVideo** was created by the team at Zhipu AI and represents groundbreaking work in real-time conversational AI 
+with lip-sync video generation. We are grateful for their innovation and for making this technology available 
+to the community.
+
+- **Original Blog Post**: [https://z.ai/blog/realvideo](https://z.ai/blog/realvideo)
+- **Hugging Face**: [zai-org/RealVideo](https://huggingface.co/zai-org/RealVideo)
+- **ModelScope**: [ZhipuAI/RealVideo](https://modelscope.cn/models/ZhipuAI/RealVideo)
+- **License**: Apache License 2.0 (Copyright 2025 Zhipu AI)
+
+### Enhancements in This Fork
+This fork adds:
+- Local CUDA-based voice input with Smart Turn and Parakeet ASR
+- Modular voice processing pipeline
+- Enhanced error handling and logging
+- Comprehensive documentation
+- Single GPU mode support
+- Production-ready code structure
+
+### Dependencies
+This project utilizes the following open-source libraries and frameworks:
+
+- [Self Forcing](https://github.com/guandeh17/Self-Forcing) - Autoregressive diffusion for video generation
+- [NeMo Toolkit](https://github.com/NVIDIA/NeMo) - NVIDIA's toolkit for conversational AI
+- [ONNXRuntime](https://onnxruntime.ai/) - Cross-platform inference acceleration
+- [FastAPI](https://fastapi.tiangolo.com/) - Modern web framework for APIs
+- [PyTorch](https://pytorch.org/) - Deep learning framework
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request. When contributing:
+- Follow the existing code style and structure
+- Add tests for new features when possible
+- Update documentation to reflect your changes
+- Ensure backward compatibility
+
+## License
+
+This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+
+**Copyright 2025 Zhipu AI** (Original RealVideo)
+
+## Support
+
+For issues related to:
+- **Original RealVideo**: Visit [z.ai](https://z.ai) or the official repositories
+- **This Fork**: Open an issue on this repository's GitHub page
+
+## Citation
+
+If you use this project in your research or application, please cite the original RealVideo work by Zhipu AI.
+
+---
+
+**Made with ❤️ by the community** | **Originally created by Zhipu AI**

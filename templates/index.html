@@ -1,58 +1,132 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RealVideo</title>
+    <title>AI VideoCall - Enhanced RealVideo</title>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            max-width: 1200px;
-            margin: 0 auto;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
             padding: 20px;
-            background-color: #f5f5f5;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 15px;
+            backdrop-filter: blur(10px);
+        }
+
+        .ascii-banner {
+            font-family: 'Courier New', monospace;
+            font-size: 10px;
+            line-height: 1.2;
+            white-space: pre;
+            text-align: center;
+            color: #fff;
+            text-shadow: 0 0 10px rgba(255, 255, 255, 0.5);
+            margin-bottom: 10px;
+            overflow-x: auto;
+        }
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+        }
+
+        .header .subtitle {
+            font-size: 1.1em;
+            opacity: 0.9;
+            font-weight: 300;
+        }
+
+        .credit {
+            font-size: 0.9em;
+            opacity: 0.8;
+            margin-top: 10px;
+        }
+
+        .credit a {
+            color: #ffd700;
+            text-decoration: none;
+            font-weight: 500;
+        }
+
+        .credit a:hover {
+            text-decoration: underline;
         }
 
         .container {
             display: flex;
             gap: 20px;
-            height: 80vh;
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        @media (max-width: 1200px) {
+            .container {
+                flex-direction: column;
+            }
         }
 
         .video-section {
             flex: 2;
             background: white;
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
         }
 
         .control-section {
             flex: 1;
             background: white;
-            border-radius: 10px;
-            padding: 20px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-radius: 15px;
+            padding: 25px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
             display: flex;
             flex-direction: column;
+            min-width: 350px;
+        }
+
+        .section-title {
+            font-size: 1.5em;
+            margin-bottom: 20px;
+            color: #667eea;
+            border-bottom: 2px solid #667eea;
+            padding-bottom: 10px;
         }
 
         .video-display {
             width: 100%;
             height: 512px;
-            background: #000;
-            border-radius: 8px;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
             color: white;
             font-size: 18px;
+            overflow: hidden;
+            box-shadow: inset 0 2px 10px rgba(0, 0, 0, 0.3);
         }
 
         .video-display img {
             max-width: 100%;
             max-height: 100%;
             border-radius: 8px;
+            object-fit: contain;
         }
 
         .controls {
@@ -65,8 +139,10 @@
 
         .control-group label {
             display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+            font-size: 0.95em;
         }
 
         .control-section .control-group:last-child {
@@ -78,35 +154,47 @@
         }
 
         button {
-            background: #007bff;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
             border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
+            padding: 12px 24px;
+            border-radius: 8px;
             cursor: pointer;
             margin: 5px;
             font-size: 14px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
         }
 
         button:hover {
-            background: #0056b3;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+
+        button:active {
+            transform: translateY(0);
         }
 
         button:disabled {
-            background: #ccc;
+            background: linear-gradient(135deg, #ccc 0%, #999 100%);
             cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
         }
 
         .button-group {
             display: flex;
             gap: 10px;
             margin-top: 10px;
+            flex-wrap: wrap;
         }
 
         .button-group button {
             flex: 1;
-            padding: 8px 12px;
+            padding: 10px 16px;
             font-size: 13px;
+            min-width: 120px;
         }
 
         .mode-selector {
@@ -127,127 +215,270 @@
         }
 
         .mode-selector label:hover {
-            border-color: #007bff;
-            background-color: #f0f8ff;
+            border-color: #667eea;
+            background-color: #f0f3ff;
         }
 
         .mode-selector input[type="radio"]:checked + span {
-            color: #007bff;
+            color: #667eea;
             font-weight: bold;
         }
 
         .mode-selector label:has(input:checked) {
-            border-color: #007bff;
-            background-color: #e7f3ff;
+            border-color: #667eea;
+            background-color: #e8ecff;
         }
 
-        input[type="text"] {
+        input[type="text"], select {
             width: 100%;
             box-sizing: border-box;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 5px;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
             font-size: 14px;
+            transition: border-color 0.3s ease;
+        }
+
+        input[type="text"]:focus, select:focus {
+            outline: none;
+            border-color: #667eea;
         }
 
         .status {
-            padding: 10px;
-            background: #e9ecef;
-            border-radius: 5px;
+            padding: 12px;
+            background: linear-gradient(135deg, #667eea15 0%, #764ba215 100%);
+            border-radius: 8px;
             margin-top: 10px;
+            font-weight: 500;
+            border-left: 4px solid #667eea;
         }
 
         .message-log {
             flex: 1;
             overflow-y: auto;
-            border: 1px solid #ddd;
-            padding: 10px;
-            background: #f8f9fa;
-            border-radius: 5px;
+            border: 2px solid #e0e0e0;
+            padding: 12px;
+            background: #f8f9fc;
+            border-radius: 8px;
             font-size: 12px;
+            min-height: 150px;
         }
 
         .message {
-            margin-bottom: 5px;
-            padding: 5px;
-            border-radius: 3px;
+            margin-bottom: 8px;
+            padding: 8px;
+            border-radius: 6px;
+            border-left: 3px solid transparent;
         }
 
         .message.text {
-            background: #d1ecf1;
+            background: #e3f2fd;
+            border-left-color: #2196f3;
         }
 
         .message.audio {
-            background: #d4edda;
+            background: #e8f5e9;
+            border-left-color: #4caf50;
         }
 
         .message.error {
-            background: #f8d7da;
+            background: #ffebee;
+            border-left-color: #f44336;
+        }
+
+        .upload-area {
+            border: 2px dashed #667eea;
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: #f8f9fc;
+        }
+
+        .upload-area:hover {
+            border-color: #764ba2;
+            background: #f0f3ff;
+        }
+
+        .upload-area.highlight {
+            border-color: #764ba2;
+            background: #e8ecff;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .progress-container {
+            display: none;
+            margin-top: 10px;
+        }
+
+        .progress-bar {
+            width: 100%;
+            height: 8px;
+            background: #e0e0e0;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.3s ease;
+        }
+
+        .progress-text {
+            text-align: center;
+            margin-top: 5px;
+            font-size: 12px;
+            color: #666;
+        }
+
+        .status-message {
+            display: none;
+            padding: 12px;
+            border-radius: 8px;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+
+        .status-message.success {
+            background: #e8f5e9;
+            color: #2e7d32;
+            border-left: 4px solid #4caf50;
+        }
+
+        .status-message.error {
+            background: #ffebee;
+            color: #c62828;
+            border-left: 4px solid #f44336;
+        }
+
+        .footer {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid #e0e0e0;
+            font-size: 0.85em;
+            color: #666;
+            text-align: center;
+        }
+
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        .upload-btn {
+            width: 100%;
+            margin: 10px 0;
+        }
+
+        /* Scrollbar styling */
+        .message-log::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .message-log::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 4px;
+        }
+
+        .message-log::-webkit-scrollbar-thumb {
+            background: #667eea;
+            border-radius: 4px;
+        }
+
+        .message-log::-webkit-scrollbar-thumb:hover {
+            background: #764ba2;
         }
     </style>
 </head>
 <body>
-    <h1>RealVideo</h1>
+    <div class="header">
+        <div class="ascii-banner">   ___  _____   _   _ _     _            ___      _ _ 
+  / _ \|_   _| | | | (_)   | |          / __\__ _| | |
+ / /_\ \ | |   | | | | | __| | ___  ___/ /  / _` | | |
+ |  _  | | |   | | | | |/ _` |/ _ \/ __/ /__| (_| | | |
+ | | | |_| |_  \ \_/ / | (_| |  __/ \__\____/\__,_|_|_|
+ \_| |_/\___/   \___/|_|\__,_|\___|\___/</div>
+        <h1>AI VideoCall</h1>
+        <div class="subtitle">Enhanced Real-Time Video Calling with AI • Voice Input • Lip Sync</div>
+        <div class="credit">Based on <a href="https://z.ai/blog/realvideo" target="_blank">RealVideo</a> by <a href="https://z.ai" target="_blank">Zhipu AI</a> (智谱AI)</div>
+    </div>
 
     <div class="container">
         <div class="video-section">
-            <h2>Video display</h2>
+            <h2 class="section-title">🎥 Video Display</h2>
             <div class="video-display" id="videoDisplay">
-                <span>Waiting for connection...</span>
+                <span>⚡ Waiting for connection...</span>
             </div>
         </div>
 
         <div class="control-section">
-            <h2>Control panel</h2>
+            <h2 class="section-title">⚙️ Control Panel</h2>
 
             <div class="control-group">
-                <label>Status:</label>
+                <label>📡 Connection Status:</label>
                 <div class="status" id="connectionStatus">Disconnected</div>
-                <button id="connectBtn" onclick="connectWebSocket()">Connect</button>
-                <button id="disconnectBtn" onclick="disconnectWebSocket()" disabled>Disconnect</button>
-            </div>
-
-            <div class="control-group">
-                <label>Character profile:</label>
-                <input type="text" id="characterProfile" value="You are a helpful assistant.">
-                <label>Text input:</label>
-                <input type="text" id="textInput" placeholder="Type a message..." onkeypress="handleTextKeyPress(event)" oninput="updateContentStatus()">
-                <button onclick="sendContent()" id="sendBtn" disabled>Send</button>
-            </div>
-
-            <div class="upload-area" id="uploadArea">
-                <input type="file" id="fileInput" class="file-input" accept="image/*,.mp3,.wav">
-            </div>
-
-            <div class="progress-container" id="progressContainer">
-                <div class="progress-bar">
-                    <div class="progress" id="progressBar"></div>
+                <div class="button-group">
+                    <button id="connectBtn" onclick="connectWebSocket()">🔗 Connect</button>
+                    <button id="disconnectBtn" onclick="disconnectWebSocket()" disabled>🔌 Disconnect</button>
                 </div>
-                <div class="progress-text" id="progressText">0%</div>
-            </div>
-
-            <button class="upload-btn" id="uploadBtn" disabled>Upload</button>
-
-            <div class="status-message" id="statusMessage"></div>
-
-            <p>Upload image (jpg, jpeg, png) to set the avatar, or upload audio (mp3, wav) to clone a voice, maximum 10MB.</p>
-            <div class="footer">
             </div>
 
             <div class="control-group">
-                <label>Image path:</label>
-                <input type="text" id="imagePath" value="resources/cat.png">
+                <label>🤖 Character Profile:</label>
+                <input type="text" id="characterProfile" value="You are a helpful assistant." placeholder="Describe the AI personality...">
             </div>
 
             <div class="control-group">
-                <label>Voice ID:</label>
+                <label>💬 Text Input:</label>
+                <input type="text" id="textInput" placeholder="Type your message here..." onkeypress="handleTextKeyPress(event)" oninput="updateContentStatus()">
+                <button onclick="sendContent()" id="sendBtn" disabled>📤 Send</button>
+            </div>
+
+            <div class="control-group">
+                <label>🖼️ Avatar Image Path:</label>
+                <input type="text" id="imagePath" value="resources/cat.png" placeholder="Path to avatar image...">
+            </div>
+
+            <div class="control-group">
+                <label>🎙️ Voice ID:</label>
                 <select name="voiceID" id="voiceID">
                 </select>
             </div>
 
             <div class="control-group">
-                <label>Message log:</label>
+                <label>📤 Upload Files:</label>
+                <div class="upload-area" id="uploadArea">
+                    <input type="file" id="fileInput" class="file-input" accept="image/*,.mp3,.wav">
+                    <p style="margin: 10px 0;">📁 Click or drag files here</p>
+                    <small>Images (JPG, PNG) for avatar • Audio (MP3, WAV, 3s+) for voice cloning • Max 10MB</small>
+                </div>
+                <button class="upload-btn" id="uploadBtn" disabled>⬆️ Upload File</button>
+                <div class="progress-container" id="progressContainer">
+                    <div class="progress-bar">
+                        <div class="progress" id="progressBar"></div>
+                    </div>
+                    <div class="progress-text" id="progressText">0%</div>
+                </div>
+                <div class="status-message" id="statusMessage"></div>
+            </div>
+
+            <div class="control-group">
+                <label>📋 Message Log:</label>
                 <div class="message-log" id="messageLog"></div>
+            </div>
+
+            <div class="footer">
+                <p>Powered by <strong>GLM-4.5-AirX</strong> & <strong>GLM-TTS</strong></p>
+                <p style="margin-top: 5px;">Original <a href="https://z.ai/blog/realvideo" target="_blank">RealVideo</a> by <a href="https://z.ai" target="_blank">Zhipu AI</a></p>
             </div>
         </div>
     </div>
