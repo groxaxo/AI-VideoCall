@@ -15,7 +15,7 @@ class SmartTurnCudaConfig:
     """Configuration for Smart Turn CUDA inference."""
 
     onnx_path: str
-    device_id: int = 0  # GPU 0 (since GPU 1 is DIT in 2xGPU setup)
+    device_id: int = 0  # Default GPU 0 for voice processing
     threshold: float = 0.5
     sample_rate: int = 16000
 

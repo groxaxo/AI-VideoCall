@@ -47,7 +47,7 @@ class VADGate:
             
         Returns:
             Tuple of (is_speech, pause_detected)
-            - is_speech: True if current frame contains speech
+            - is_speech: True if current frame contains speech or speech is active
             - pause_detected: True if a significant pause was detected
         """
         # Calculate RMS energy
@@ -79,6 +79,8 @@ class VADGate:
                 pause_detected = True
                 self.is_speech_active = False
 
+        # Return True for is_speech if currently active OR frame contains speech
+        # This ensures we don't miss speech at boundaries
         return self.is_speech_active or frame_has_speech, pause_detected
 
     def process_audio(self, audio: np.ndarray) -> list[tuple[bool, bool]]:

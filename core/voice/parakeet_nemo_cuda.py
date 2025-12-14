@@ -81,7 +81,9 @@ class ParakeetASR:
 
             # Resample if needed
             if sr != self.cfg.sample_rate:
-                # Simple resampling - for production, use librosa or similar
+                # Simple linear interpolation resampling
+                # Note: For production, consider using librosa.resample or 
+                # scipy.signal.resample for higher quality resampling
                 duration = len(audio) / sr
                 target_length = int(duration * self.cfg.sample_rate)
                 indices = np.linspace(0, len(audio) - 1, target_length)

@@ -295,7 +295,8 @@ class RealVideoApp:
                     f"Received message from client {client_id}: {message_data.get('type', 'unknown')}"
                 )
 
-                # Handle voice control messages
+                # Handle voice control messages (voice_start, voice_stop)
+                # Note: Voice protocol uses VoiceMessageType enum for responses
                 if message_data["type"] == "voice_start":
                     await self._handle_voice_start(message_data, websocket, client_id)
                 elif message_data["type"] == "voice_stop":

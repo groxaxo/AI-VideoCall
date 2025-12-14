@@ -33,10 +33,10 @@ class VoiceSessionConfig:
     sample_rate: int = 16000
     buffer_max_seconds: float = 30.0  # Maximum audio buffer
     turn_check_seconds: float = 2.0  # Seconds of audio to check for turn
-    smart_turn_config: Optional[SmartTurnCudaConfig] = None
-    parakeet_config: Optional[ParakeetConfig] = None
-    vad_config: Optional[VADConfig] = None
     enable_smart_turn: bool = True  # Enable Smart Turn detection
+    
+    # Note: Component-specific configs (SmartTurnCudaConfig, ParakeetConfig, VADConfig) 
+    # can be passed to VoiceSession constructor directly if customization is needed
 
 
 class VoiceSession:
@@ -53,6 +53,7 @@ class VoiceSession:
         config: VoiceSessionConfig,
         smart_turn: Optional[SmartTurnCuda] = None,
         parakeet_asr: Optional[ParakeetASR] = None,
+        vad_config: Optional[VADConfig] = None,
     ):
         """
         Initialize voice session.
@@ -61,6 +62,7 @@ class VoiceSession:
             config: VoiceSessionConfig
             smart_turn: Optional SmartTurnCuda instance (shared across sessions)
             parakeet_asr: Optional ParakeetASR instance (shared across sessions)
+            vad_config: Optional VADConfig for customizing VAD behavior
         """
         self.config = config
         self.state = VoiceSessionState.IDLE
@@ -70,7 +72,7 @@ class VoiceSession:
             max_seconds=config.buffer_max_seconds,
             sample_rate=config.sample_rate,
         )
-        self.vad = VADGate(config.vad_config or VADConfig())
+        self.vad = VADGate(vad_config or VADConfig())
         self.smart_turn = smart_turn
         self.parakeet_asr = parakeet_asr
 
