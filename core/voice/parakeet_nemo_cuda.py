@@ -25,14 +25,14 @@ class ParakeetConfig:
 class ParakeetASR:
     """
     Parakeet ASR using NeMo for local CUDA-accelerated speech recognition.
-    
+
     This provides local ASR without external API calls, running on GPU.
     """
 
     def __init__(self, cfg: ParakeetConfig):
         """
         Initialize Parakeet ASR.
-        
+
         Args:
             cfg: ParakeetConfig configuration
         """
@@ -67,11 +67,11 @@ class ParakeetASR:
     def transcribe_pcm16(self, pcm16: bytes, sr: int = 16000) -> str:
         """
         Transcribe PCM16 audio data.
-        
+
         Args:
             pcm16: PCM16 audio data as bytes
             sr: Sample rate of the audio (default: 16000)
-            
+
         Returns:
             Transcribed text
         """
@@ -82,7 +82,7 @@ class ParakeetASR:
             # Resample if needed
             if sr != self.cfg.sample_rate:
                 # Simple linear interpolation resampling
-                # Note: For production, consider using librosa.resample or 
+                # Note: For production, consider using librosa.resample or
                 # scipy.signal.resample for higher quality resampling
                 duration = len(audio) / sr
                 target_length = int(duration * self.cfg.sample_rate)
@@ -99,11 +99,11 @@ class ParakeetASR:
     def transcribe_audio(self, audio: np.ndarray, sr: int = 16000) -> str:
         """
         Transcribe float32 audio data.
-        
+
         Args:
             audio: Audio as float32 numpy array
             sr: Sample rate of the audio (default: 16000)
-            
+
         Returns:
             Transcribed text
         """
@@ -141,4 +141,4 @@ class ParakeetASR:
         """Cleanup resources."""
         if hasattr(self, "model"):
             del self.model
-            torch.cuda.empty_cache()
+            # Note: Removed torch.cuda.empty_cache() as it's a performance footgun in destructors

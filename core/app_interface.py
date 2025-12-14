@@ -251,22 +251,34 @@ class RealVideoApp:
                 await self._handle_websocket_connection(websocket, client_id)
 
             except WebSocketDisconnect:
-                await self.lip_sync_manager.disconnect_websocket()
-                self.connection_manager.disconnect(client_id)
-                # Clean up voice session if exists
-                if client_id in self.voice_sessions:
-                    del self.voice_sessions[client_id]
                 logger.info(f"Client {client_id} disconnected")
 
             except Exception as e:
-                await self.lip_sync_manager.disconnect_websocket()
-                self.connection_manager.disconnect(client_id)
-                # Clean up voice session if exists
-                if client_id in self.voice_sessions:
-                    del self.voice_sessions[client_id]
-
                 logger.exception(f"Exception in Client {client_id}: {e}")
                 logger.exception(traceback.format_exc())
+
+            finally:
+                # Clean up voice session if exists
+                if client_id in self.voice_sessions:
+                    try:
+                        voice_session = self.voice_sessions[client_id]
+                        # Finalize to transcribe any buffered audio
+                        transcript = await voice_session.finalize()
+                        if transcript:
+                            logger.info(
+                                f"Final transcript on disconnect for client {client_id}: {transcript}"
+                            )
+                        voice_session.stop()
+                        del self.voice_sessions[client_id]
+                        logger.info(f"Voice session cleaned up for client {client_id}")
+                    except Exception as cleanup_error:
+                        logger.error(
+                            f"Error cleaning up voice session for client {client_id}: {cleanup_error}"
+                        )
+
+                # Clean up websocket connections
+                await self.lip_sync_manager.disconnect_websocket()
+                self.connection_manager.disconnect(client_id)
 
     async def _handle_websocket_connection(self, websocket: WebSocket, client_id: int):
         while True:
@@ -278,9 +290,13 @@ class RealVideoApp:
                 # Handle binary messages (voice PCM16 data)
                 if msg["type"] == "websocket.receive" and "bytes" in msg:
                     if self.voice_enabled:
-                        await self._handle_voice_binary(msg["bytes"], websocket, client_id)
+                        await self._handle_voice_binary(
+                            msg["bytes"], websocket, client_id
+                        )
                     else:
-                        logger.warning("Received binary voice data but voice is disabled")
+                        logger.warning(
+                            "Received binary voice data but voice is disabled"
+                        )
                     continue
 
                 # Handle text messages (JSON)
@@ -289,7 +305,7 @@ class RealVideoApp:
 
                 data = msg["text"]
                 message_data = json.loads(data)
-                logger.info(message_data)
+                logger.debug(message_data)
 
                 logger.debug(
                     f"Received message from client {client_id}: {message_data.get('type', 'unknown')}"
@@ -424,9 +440,43 @@ class RealVideoApp:
         """Handle voice_stop control message."""
         try:
             if client_id in self.voice_sessions:
-                self.voice_sessions[client_id].stop()
+                voice_session = self.voice_sessions[client_id]
+
+                # Finalize session to transcribe any buffered audio
+                transcript = await voice_session.finalize()
+
+                # Stop and cleanup session
+                voice_session.stop()
                 del self.voice_sessions[client_id]
+
                 logger.info(f"Voice session stopped for client {client_id}")
+
+                # If we got a final transcript, process it
+                if transcript:
+                    logger.info(
+                        f"Final voice transcript for client {client_id}: {transcript}"
+                    )
+
+                    # Inject transcript as a text message into the existing pipeline
+                    text_message = {
+                        "type": "text",
+                        "text": transcript,
+                        "profile": "",
+                        "timestamp": time.time(),
+                    }
+
+                    # Send transcript notification to client
+                    transcript_data = {
+                        "type": "voice_transcript",
+                        "text": transcript,
+                        "timestamp": time.time(),
+                    }
+                    await websocket.send_text(json.dumps(transcript_data))
+
+                    # Process as normal text message
+                    await self._handle_text_audio_message(
+                        text_message, websocket, client_id
+                    )
 
                 # Send acknowledgment
                 response_data = {
