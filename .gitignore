@@ -184,3 +184,13 @@ cython_debug/
 .idea/*
 
 __pycache__/
+
+# Model files (large binaries)
+models/**/*.onnx
+models/**/*.pt
+models/**/*.pth
+models/**/*.bin
+models/**/*.safetensors
+
+# Uploads directory
+uploads/

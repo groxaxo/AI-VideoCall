@@ -25,6 +25,7 @@ Visit [blog](https://z.ai/blog/realvideo) here!
 ## Features
 
 - **Text Input**: Supports text message input.
+- **Voice Input** (Optional): Local CUDA-based speech recognition with Smart Turn and Parakeet ASR.
 - **AI Voice Response**: Integrates GLM-4.5-AirX and GLM-TTS models to generate voice responses.
 - **Lip Sync**: Generates real-time conversational video based on any input image and audio.
 - **Real-time Communication**: WebSocket-based real-time bidirectional communication.
@@ -96,7 +97,26 @@ real-time generation can be achieved. Numbers in parentheses indicate the time t
    file longer than 3 seconds for voice cloning.
 2. **Connect WebSocket**: Click the "Connect" button to establish the WebSocket connection.
 3. **Text Input**: Enter a message in the text box and press Enter or click "Send" to send the message.
-4. **Real-time Response**: The real-time generated video response will be displayed on the left.
+4. **Voice Input** (Optional): Enable with `VOICE_ENABLED=true` environment variable. See [VOICE_INPUT.md](VOICE_INPUT.md) for details.
+5. **Real-time Response**: The real-time generated video response will be displayed on the left.
+
+### Voice Input (Advanced Feature)
+
+This system supports optional local CUDA-based voice input using:
+- **Smart Turn v3.x**: End-of-turn detection on GPU
+- **Parakeet ASR**: Speech recognition with NeMo
+
+**Quick Setup:**
+```bash
+# Enable voice input
+export VOICE_ENABLED=true
+export VOICE_GPU=0
+
+# Download Smart Turn ONNX model (optional, see VOICE_INPUT.md)
+# Place in models/smart_turn/smart-turn-v3.1-gpu.onnx
+```
+
+For complete voice input documentation, configuration options, and WebSocket protocol details, see [VOICE_INPUT.md](VOICE_INPUT.md).
 
 ## Technical Highlights
 

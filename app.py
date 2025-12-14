@@ -27,7 +27,8 @@ if "OMPI_COMM_WORLD_LOCAL_RANK" in os.environ:
 
 
 def main():
-    sp_size = int(os.environ.get("WORLD_SIZE", 2)) - 1
+    world_size = int(os.environ.get("WORLD_SIZE", "2"))
+    sp_size = max(0, world_size - 1)
     logger = logging.getLogger(__name__)
 
     # Initialize distributed inference
@@ -42,7 +43,11 @@ def main():
     if local_rank == 0:
         interface_main()
     else:
-        dit_main()
+        # Only run dit_main if we have multiple GPUs
+        if sp_size > 0:
+            dit_main()
+        else:
+            logger.info(f"Rank {local_rank}: Skipping dit_main (single GPU mode)")
 
     torch.distributed.barrier()
     mpu.destroy_parallel_groups()
