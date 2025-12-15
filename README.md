@@ -27,7 +27,7 @@ Visit [blog](https://z.ai/blog/realvideo) here!
 - **Text Input**: Supports text message input.
 - **Voice Input** (Optional): Local CUDA-based speech recognition with Smart Turn and Parakeet ASR.
 - **AI Voice Response**: Integrates GLM-4.5-AirX and GLM-TTS models to generate voice responses.
-- **Lip Sync**: Generates real-time conversational video based on any input image and audio.
+- **Lip Sync** (Optional): Generates real-time conversational video based on any input image and audio.
 - **Real-time Communication**: WebSocket-based real-time bidirectional communication.
 
 ## Download
@@ -78,6 +78,17 @@ CUDA_VISIBLE_DEVICES=0,1 bash ./scripts/run_app.sh
 One GPU will be used for the VAE service, while the remaining GPUs will be automatically allocated for parallel
 computation of the DiT service.
 
+#### Optional: Audio-Only Mode
+
+To disable video generation and use audio-only mode:
+
+```bash
+export VIDEO_ENABLED=false
+CUDA_VISIBLE_DEVICES=0,1 bash ./scripts/run_app.sh
+```
+
+This will skip video frame generation and only process audio, reducing GPU memory usage and processing time.
+
 The table below shows reference times (in ms) for DiT to generate one block. If the time is within **500ms**, smooth
 real-time generation can be achieved. Numbers in parentheses indicate the time taken with compilation enabled.
 
@@ -98,7 +109,8 @@ real-time generation can be achieved. Numbers in parentheses indicate the time t
 2. **Connect WebSocket**: Click the "Connect" button to establish the WebSocket connection.
 3. **Text Input**: Enter a message in the text box and press Enter or click "Send" to send the message.
 4. **Voice Input** (Optional): Enable with `VOICE_ENABLED=true` environment variable. See [VOICE_INPUT.md](VOICE_INPUT.md) for details.
-5. **Real-time Response**: The real-time generated video response will be displayed on the left.
+5. **Video Generation** (Optional): Enable with `VIDEO_ENABLED=true` (default). Set to `false` for audio-only mode.
+6. **Real-time Response**: The real-time generated video response will be displayed on the left (if video is enabled).
 
 ### Voice Input (Advanced Feature)
 

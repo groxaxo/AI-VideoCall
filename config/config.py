@@ -36,6 +36,7 @@ class VoiceConfig:
 
 @dataclass
 class VideoConfig:
+    enabled: bool = True  # Video generation enabled by default
     fps: int = 16
 
     frame_width: int = 480
@@ -117,6 +118,9 @@ class Config:
             "SMART_TURN_ONNX_PATH", self.voice.smart_turn_onnx_path
         )
         self.voice.parakeet_device = f"cuda:{self.voice.device_id}"
+
+        # Video configuration from environment
+        self.video.enabled = os.getenv("VIDEO_ENABLED", "true").lower() == "true"
 
 
 config = Config()
