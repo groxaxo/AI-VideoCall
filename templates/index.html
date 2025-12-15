@@ -499,6 +499,8 @@
         let audioQueueMaxLength = 50;
         let audioPlayCount = 0;
         let maxAudioPlays = 1000;
+        
+        let videoEnabled = true;  // Track if video is enabled
 
         let audioMonitorInterval = null;
         let lastAudioTime = Date.now();
@@ -734,6 +736,7 @@
 
                 resetAudioSystem();
                 resetVideoSystem();
+                videoEnabled = true;  // Reset video enabled state on new connection
             };
             console.log(`websocket init done`)
 
@@ -809,8 +812,17 @@
                 if (data.image && data.image.length > 0) {
                     console.log(`Received image data, size: ${data.image.length}, frame: ${data.frame_index || 0}/${data.total_frames || 1}`);
                     addVideoFrameToQueue(data.image);
+                    videoEnabled = true;  // Video is enabled
                 } else {
-                    console.warn('Received empty image data');
+                    // Empty image data - video is disabled
+                    if (videoEnabled) {
+                        console.log('Video generation is disabled or not available');
+                        videoEnabled = false;  // Mark video as disabled
+                        const videoDisplay = document.getElementById('videoDisplay');
+                        if (videoDisplay) {
+                            videoDisplay.innerHTML = '<div style="color: white; font-size: 18px;">Audio-only mode<br>(Video disabled)</div>';
+                        }
+                    }
                 }
             } else if (data.type === 'error') {
                 addMessage('System', data.message, 'error');

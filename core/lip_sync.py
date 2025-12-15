@@ -320,10 +320,11 @@ class LipSyncManager:
     async def send_frame(self, frame_data, frame_idx):
         if self.websocket:
             try:
+                # Send frame data (may include video, audio, or both)
                 data = {
                     "type": "audio_image",
                     "audio": frame_data.get("audio_base64", ""),
-                    "image": frame_data.get("image_base64", ""),
+                    "image": frame_data.get("image_base64", "") if service_config.video.enabled else "",
                     "timestamp": datetime.datetime.now().isoformat(),
                     "frame_index": frame_idx,
                     "audio_finish_frame": math.ceil(
@@ -468,15 +469,26 @@ class LipSyncManager:
             self.frame_count = 1
             self.service_running.set()
 
-            await self.send_frame(
-                frame_data={
-                    "image_base64": encode_image_to_base64(
-                        remap_image(self.predefined_frames[0])
-                    ),
-                    "time": time.time(),
-                },
-                frame_idx=0,
-            )
+            # Send initial frame only if video is enabled
+            if service_config.video.enabled:
+                await self.send_frame(
+                    frame_data={
+                        "image_base64": encode_image_to_base64(
+                            remap_image(self.predefined_frames[0])
+                        ),
+                        "time": time.time(),
+                    },
+                    frame_idx=0,
+                )
+            else:
+                # Send empty frame for audio-only mode
+                await self.send_frame(
+                    frame_data={
+                        "image_base64": "",
+                        "time": time.time(),
+                    },
+                    frame_idx=0,
+                )
             await self.cond_queue.put(("start", conditional_dict))
 
             await asyncio.sleep(0)
@@ -625,43 +637,54 @@ class LipSyncManager:
                     vae_idle_event.set()
                     continue
 
-                if self.profile:
-                    vae_start = torch.cuda.Event(enable_timing=True)
-                    vae_end = torch.cuda.Event(enable_timing=True)
-                    vae_start.record()
-
                 output_block = output_block_dict["output_block"]
                 id = output_block_dict.get("id", None)
 
-                frame_block = self.vae.decode_to_pixel(
-                    output_block, use_cache=True
-                )  # btchw
-                frame_block = rearrange(frame_block, "b t c h w -> b t h w c").squeeze(
-                    0
-                )
-                await asyncio.sleep(0)
+                # Only decode video if enabled
+                if service_config.video.enabled:
+                    if self.profile:
+                        vae_start = torch.cuda.Event(enable_timing=True)
+                        vae_end = torch.cuda.Event(enable_timing=True)
+                        vae_start.record()
 
-                logger.info(
-                    f"Rank {mpu.get_rank()}: vae decoded frame_block: {frame_block.shape}"
-                )
-                frames = remap_image(frame_block)
-                await asyncio.sleep(0)
+                    frame_block = self.vae.decode_to_pixel(
+                        output_block, use_cache=True
+                    )  # btchw
+                    frame_block = rearrange(frame_block, "b t c h w -> b t h w c").squeeze(
+                        0
+                    )
+                    await asyncio.sleep(0)
 
-                if self.profile:
-                    vae_end.record()
-                    torch.cuda.synchronize()
-                    vae_time = vae_start.elapsed_time(vae_end)
-                    logger.info(f"  - VAE decode time: {vae_time:.2f} ms")
-                    base64_start = time.time()
+                    logger.info(
+                        f"Rank {mpu.get_rank()}: vae decoded frame_block: {frame_block.shape}"
+                    )
+                    frames = remap_image(frame_block)
+                    await asyncio.sleep(0)
 
-                frame_dicts = [
-                    {"image_base64": await encode_image_async(frame)}
-                    for frame in frames
-                ]
-                if self.profile:
-                    base64_time = (time.time() - base64_start) * 1000
-                    logger.info(f"  - Base64 encode time: {base64_time:.3f} ms")
-                await asyncio.sleep(0)
+                    if self.profile:
+                        vae_end.record()
+                        torch.cuda.synchronize()
+                        vae_time = vae_start.elapsed_time(vae_end)
+                        logger.info(f"  - VAE decode time: {vae_time:.2f} ms")
+                        base64_start = time.time()
+
+                    frame_dicts = [
+                        {"image_base64": await encode_image_async(frame)}
+                        for frame in frames
+                    ]
+                    if self.profile:
+                        base64_time = (time.time() - base64_start) * 1000
+                        logger.info(f"  - Base64 encode time: {base64_time:.3f} ms")
+                    await asyncio.sleep(0)
+                else:
+                    # Video disabled - create empty frame dicts without video data
+                    # Determine the number of frames based on output block shape
+                    num_frames = 1  # Default to 1 frame
+                    if output_block is not None and hasattr(output_block, 'shape'):
+                        if len(output_block.shape) > 1:
+                            num_frames = output_block.shape[1]
+                    frame_dicts = [{"image_base64": ""} for _ in range(num_frames)]
+                    logger.info(f"Rank {mpu.get_rank()}: Video disabled, skipping VAE decode, frames: {num_frames}")
 
                 if id in self.audio_storage.keys():
                     audio_data = self.audio_storage.get(id, dict())
