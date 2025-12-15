@@ -583,7 +583,9 @@
                     if (data.frame_index === 0) {
                         console.log('Video generation is disabled or not available');
                         const videoDisplay = document.getElementById('videoDisplay');
-                        videoDisplay.innerHTML = '<div style="color: white; font-size: 18px;">Audio-only mode<br>(Video disabled)</div>';
+                        if (videoDisplay) {
+                            videoDisplay.innerHTML = '<div style="color: white; font-size: 18px;">Audio-only mode<br>(Video disabled)</div>';
+                        }
                     }
                 }
             } else if (data.type === 'error') {

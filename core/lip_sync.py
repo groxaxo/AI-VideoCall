@@ -679,9 +679,12 @@ class LipSyncManager:
                 else:
                     # Video disabled - create empty frame dicts without video data
                     # Determine the number of frames based on output block shape
-                    num_frames = output_block.shape[1] if len(output_block.shape) > 1 else 1
+                    if output_block is not None and len(output_block.shape) > 1:
+                        num_frames = output_block.shape[1]
+                    else:
+                        num_frames = 1
                     frame_dicts = [{"image_base64": ""} for _ in range(num_frames)]
-                    logger.info(f"Rank {mpu.get_rank()}: Video disabled, skipping VAE decode")
+                    logger.info(f"Rank {mpu.get_rank()}: Video disabled, skipping VAE decode, frames: {num_frames}")
 
                 if id in self.audio_storage.keys():
                     audio_data = self.audio_storage.get(id, dict())
