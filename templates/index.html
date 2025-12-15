@@ -579,7 +579,12 @@
                     console.log(`Received image data, size: ${data.image.length}, frame: ${data.frame_index || 0}/${data.total_frames || 1}`);
                     addVideoFrameToQueue(data.image);
                 } else {
-                    console.warn('Received empty image data');
+                    // Empty image data - video may be disabled
+                    if (data.frame_index === 0) {
+                        console.log('Video generation is disabled or not available');
+                        const videoDisplay = document.getElementById('videoDisplay');
+                        videoDisplay.innerHTML = '<div style="color: white; font-size: 18px;">Audio-only mode<br>(Video disabled)</div>';
+                    }
                 }
             } else if (data.type === 'error') {
                 addMessage('System', data.message, 'error');
