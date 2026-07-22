@@ -37,13 +37,14 @@ For ABot-World on Ampere, start in BF16. If runtime quantization is needed, use
 `fp8-per-block`; do not use its Blackwell-oriented `fp8-per-token` default on a
 3090.
 
-## 1. Install the additional transport dependency
+## 1. Install the additional dependencies
 
 ```bash
 pip install 'pyzmq>=26,<28'
 ```
 
-The normal project requirements now include this package.
+The normal project requirements include this package and a matching
+`torchaudio` build for the pinned PyTorch version.
 
 ## 2. Prepare LiveTalking and MuseTalk
 
@@ -51,11 +52,9 @@ Clone and install LiveTalking in a separate environment. Download its MuseTalk
 v1.5, SD VAE, positional encoder and Whisper model files according to its own
 instructions.
 
-The sidecar imports LiveTalking rather than copying its model implementation
-into this repository.
-
-Start it on the second 3090. Isolate the process with `CUDA_VISIBLE_DEVICES` so
-LiveTalking's module-level CUDA selection and the configured model device agree:
+The sidecar intentionally imports LiveTalking rather than copying its model
+implementation into this repository. Run the sidecar with the LiveTalking
+Python environment while keeping the working directory at AI VideoCall:
 
 ```bash
 cd /home/op/AI-VideoCall
@@ -66,7 +65,7 @@ MUSE_TALK_DEVICE=cuda \
 MUSE_TALK_PORT=8011 \
 MUSE_TALK_BATCH_SIZE=8 \
 MUSE_TALK_FACE_BBOX='220,35,610,440' \
-python -m services.musetalk_sidecar
+/home/op/LiveTalking/.venv/bin/python -m services.musetalk_sidecar
 ```
 
 Health check:
@@ -88,8 +87,9 @@ export MUSE_TALK_TOKEN='replace-with-a-random-secret'
 ## 3. Publish TI2V frames
 
 The subscriber accepts either a one-part message containing JPEG/PNG bytes or a
-multipart message whose final part contains the encoded image. It uses
-latest-frame semantics; stale generated frames are discarded instead of queued.
+multipart message whose final part contains the encoded image. Single-part mode
+uses ZeroMQ `CONFLATE`; all modes use `RCVHWM=1`, so stale generated frames are
+discarded instead of accumulating.
 
 A publisher can be inserted into ABot-World's decoded-frame loop:
 
@@ -128,6 +128,8 @@ VOICE_GPU=0 \
 WAN_FRAME_ENDPOINT=tcp://127.0.0.1:5560 \
 MUSETALK_URL=http://127.0.0.1:8011 \
 MUSETALK_OUTPUT_FPS=25 \
+VIDEO_FRAME_WIDTH=832 \
+VIDEO_FRAME_HEIGHT=480 \
 WANMUSE_AUDIO_SEGMENT_SECONDS=1.0 \
 WANMUSE_FACE_BBOX='220,35,610,440' \
 bash scripts/run_app.sh
@@ -138,6 +140,16 @@ correctly addresses that visible device.
 
 Open `http://localhost:8003`, upload a stable portrait reference, connect the
 WebSocket, and start a conversation.
+
+A convenience launcher starts the MuseTalk sidecar and AI VideoCall while
+leaving GPU 0 available for your Wan/ABot publisher:
+
+```bash
+MUSE_TALK_LIVETALKING_ROOT=/home/op/LiveTalking \
+MUSE_TALK_PYTHON=/home/op/LiveTalking/.venv/bin/python \
+WAN_GPU=0 MUSETALK_GPU=1 APP_GPU=2 \
+bash scripts/run_wanmuse_stack.sh
+```
 
 ## Environment variables
 
@@ -154,6 +166,7 @@ WebSocket, and start a conversation.
 | `WANMUSE_FACE_BBOX` | empty | Fixed face ROI |
 | `WANMUSE_AUDIO_SEGMENT_SECONDS` | `1.0` | TTS segment size sent to MuseTalk |
 | `WANMUSE_STRICT` | `false` | Fail instead of falling back to a still frame |
+| `MUSE_TALK_PYTHON` | LiveTalking `.venv` | Sidecar Python executable for launcher |
 
 ## Degraded behavior
 
@@ -179,4 +192,5 @@ python -m py_compile \
   core/lip_sync_factory.py \
   services/musetalk_sidecar.py \
   services/ti2v_frame_publisher.py
+bash -n scripts/run_app.sh scripts/run_wanmuse_stack.sh
 ```
