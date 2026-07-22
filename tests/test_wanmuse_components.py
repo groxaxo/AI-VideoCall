@@ -5,10 +5,7 @@ import unittest
 import numpy as np
 
 from core.wanmuse.frame_source import LatestFrameStore
-from core.wanmuse.musetalk_client import (
-    MuseTalkClientError,
-    parse_render_response,
-)
+from core.wanmuse.musetalk_client import MuseTalkClientError, parse_render_response
 from core.wanmuse.settings import parse_face_bbox
 
 
@@ -66,8 +63,7 @@ class MuseTalkResponseTests(unittest.TestCase):
         encoded = base64.b64encode(b"x").decode("ascii")
         with self.assertRaises(MuseTalkClientError):
             parse_render_response(
-                {"frames": [encoded, encoded], "fps": 25},
-                max_frames=1,
+                {"frames": [encoded, encoded], "fps": 25}, max_frames=1
             )
 
 
@@ -76,14 +72,97 @@ class FaceBoundingBoxTests(unittest.TestCase):
         self.assertIsNone(parse_face_bbox(""))
 
     def test_parses_bbox(self):
-        self.assertEqual(
-            parse_face_bbox("10,20,110,220"),
-            (10, 20, 110, 220),
-        )
+        self.assertEqual(parse_face_bbox("10,20,110,220"), (10, 20, 110, 220))
 
     def test_rejects_inverted_bbox(self):
         with self.assertRaises(ValueError):
             parse_face_bbox("10,20,5,220")
+
+
+class _FakeWebSocket:
+    def __init__(self):
+        self.messages = []
+
+    async def send_text(self, value):
+        import json
+
+        self.messages.append(json.loads(value))
+
+
+class _FakeSegment:
+    def __init__(self, frames, fps=25):
+        self.frames = tuple(frames)
+        self.fps = fps
+
+
+class _FakeMuseTalkClient:
+    def __init__(self, frames=None, error=None):
+        self.frames = frames or []
+        self.error = error
+        self.calls = []
+
+    async def render(self, **kwargs):
+        self.calls.append(kwargs)
+        if self.error is not None:
+            raise self.error
+        return _FakeSegment(self.frames, kwargs["fps"])
+
+
+class WanMuseManagerTests(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        import asyncio
+
+        from core.wanmuse.manager import WanMuseLipSyncManager
+
+        self.idle_event = asyncio.Event()
+        self.manager = WanMuseLipSyncManager(self.idle_event)
+        self.manager.websocket = _FakeWebSocket()
+        self.manager.frame_store.update(
+            np.zeros((16, 24, 3), dtype=np.uint8)
+        )
+
+    async def test_audio_is_attached_only_to_first_rendered_frame(self):
+        encoded = base64.b64encode(b"jpeg").decode("ascii")
+        fake = _FakeMuseTalkClient([encoded, encoded])
+        self.manager.musetalk = fake
+
+        await self.manager.process_audio_chunk(
+            "audio-base64",
+            np.zeros((1, 16000), dtype=np.float32),
+        )
+
+        messages = self.manager.websocket.messages
+        self.assertEqual(len(messages), 2)
+        self.assertEqual(messages[0]["audio"], "audio-base64")
+        self.assertEqual(messages[1]["audio"], "")
+        self.assertEqual(messages[0]["video_backend"], "ti2v5b_musetalk")
+        self.assertTrue(self.idle_event.is_set())
+
+    async def test_sidecar_failure_falls_back_when_not_strict(self):
+        self.manager.strict = False
+        self.manager.musetalk = _FakeMuseTalkClient(error=RuntimeError("offline"))
+
+        await self.manager.process_audio_chunk(
+            "audio-base64",
+            np.zeros((1, 8000), dtype=np.float32),
+        )
+
+        messages = self.manager.websocket.messages
+        self.assertEqual(len(messages), 1)
+        self.assertEqual(messages[0]["audio"], "audio-base64")
+        self.assertTrue(messages[0]["image"])
+        self.assertTrue(self.idle_event.is_set())
+
+    async def test_sidecar_failure_raises_in_strict_mode(self):
+        self.manager.strict = True
+        self.manager.musetalk = _FakeMuseTalkClient(error=RuntimeError("offline"))
+
+        with self.assertRaises(RuntimeError):
+            await self.manager.process_audio_chunk(
+                "audio-base64",
+                np.zeros((1, 8000), dtype=np.float32),
+            )
+        self.assertTrue(self.idle_event.is_set())
 
 
 if __name__ == "__main__":
