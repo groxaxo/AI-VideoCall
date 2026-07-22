@@ -42,3 +42,4 @@ onnxconverter_common
 flask
 flask-socketio
 nemo_toolkit[asr]
+pyzmq>=26.0,<28
