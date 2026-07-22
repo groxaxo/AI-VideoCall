@@ -115,7 +115,9 @@ The publisher must bind; AI VideoCall connects as the subscriber.
 ## 4. Start AI VideoCall
 
 Run the interface on the third GPU. The new backend is single-process and does
-not initialize torch.distributed or the 14B Self-Forcing DiT service.
+not initialize torch.distributed or the 14B Self-Forcing DiT service. The
+built-in browser currently schedules frames at 16 FPS, so keep
+`MUSETALK_OUTPUT_FPS=16` for synchronized playback.
 
 ```bash
 cd /home/op/AI-VideoCall
@@ -127,7 +129,7 @@ VOICE_ENABLED=true \
 VOICE_GPU=0 \
 WAN_FRAME_ENDPOINT=tcp://127.0.0.1:5560 \
 MUSETALK_URL=http://127.0.0.1:8011 \
-MUSETALK_OUTPUT_FPS=25 \
+MUSETALK_OUTPUT_FPS=16 \
 VIDEO_FRAME_WIDTH=832 \
 VIDEO_FRAME_HEIGHT=480 \
 WANMUSE_AUDIO_SEGMENT_SECONDS=1.0 \
@@ -160,7 +162,7 @@ bash scripts/run_wanmuse_stack.sh
 | `WAN_FRAME_TOPIC` | empty | Optional SUB topic |
 | `WAN_FRAME_MAX_AGE_SECONDS` | `10` | Reject old publisher frames |
 | `MUSETALK_URL` | `http://127.0.0.1:8011` | Local sidecar URL |
-| `MUSETALK_OUTPUT_FPS` | `25` | Browser and MuseTalk frame rate |
+| `MUSETALK_OUTPUT_FPS` | `16` | Built-in browser and MuseTalk frame rate |
 | `MUSETALK_TIMEOUT_SECONDS` | `60` | Per audio-segment timeout |
 | `MUSE_TALK_TOKEN` | empty | Optional bearer token |
 | `WANMUSE_FACE_BBOX` | empty | Fixed face ROI |
