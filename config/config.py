@@ -59,7 +59,7 @@ class WanMuseConfig:
     musetalk_url: str = "http://127.0.0.1:8011"
     musetalk_timeout_seconds: float = 60.0
     musetalk_token: str = ""
-    output_fps: int = 25
+    output_fps: int = 16
     face_bbox: str = ""
     audio_segment_seconds: float = 1.0
 
