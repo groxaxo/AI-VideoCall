@@ -37,6 +37,7 @@ class VoiceConfig:
 @dataclass
 class VideoConfig:
     enabled: bool = True  # Video generation enabled by default
+    backend: str = "self_forcing_s2v"
     fps: int = 16
 
     frame_width: int = 480
@@ -44,6 +45,28 @@ class VideoConfig:
 
     speaking_prompt: str = "A character is talking."
     silence_prompt: str = "A character is looking at the camera."
+
+
+@dataclass
+class WanMuseConfig:
+    """Wan2.2 TI2V-5B + MuseTalk sidecar configuration."""
+
+    frame_endpoint: str = "tcp://127.0.0.1:5560"
+    frame_topic: str = ""
+    frame_poll_timeout_ms: int = 250
+    max_frame_age_seconds: float = 10.0
+
+    musetalk_url: str = "http://127.0.0.1:8011"
+    musetalk_timeout_seconds: float = 60.0
+    musetalk_token: str = ""
+    output_fps: int = 16
+    face_bbox: str = ""
+    audio_segment_seconds: float = 1.0
+
+    jpeg_quality: int = 90
+    max_response_bytes: int = 96 * 1024 * 1024
+    max_response_frames: int = 600
+    strict: bool = False
 
 
 @dataclass
@@ -85,42 +108,143 @@ class LipSyncConfig:
 
 
 class Config:
+    VALID_VIDEO_BACKENDS = {"self_forcing_s2v", "ti2v5b_musetalk"}
+
     def __init__(self):
         self.audio = AudioConfig()
         self.video = VideoConfig()
+        self.wanmuse = WanMuseConfig()
         self.server = ServerConfig()
         self.lip_sync = LipSyncConfig()
         self.voice = VoiceConfig()
 
         self._load_from_env()
 
+    @staticmethod
+    def _env_bool(name: str, default: bool) -> bool:
+        return os.getenv(name, str(default)).strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+
     def _load_from_env(self):
         self.api_key = os.getenv("ZHIPUAI_API_KEY")
         self.log_level = os.getenv("LOG_LEVEL", "DEBUG")
         self.self_focing_config_path = os.getenv("CONFIG_PATH", "")
-        self.audio_samples_per_video_block = round(
-            self.audio.sample_rate
-            / self.video.fps
-            * self.lip_sync.dit_config.num_frame_per_block
-            * 4
-        )  # in audio samples, (4 for vae)
-        self.lip_sync.audio_min_length = (
-            4 * self.lip_sync.dit_config.num_frame_per_block
-        )  # in frames, (4 for vae)
+
+        # Video backend selection must happen before audio chunk sizing because
+        # the TI2V+MuseTalk path is not tied to DiT frame blocks.
+        backend = os.getenv("VIDEO_BACKEND", self.video.backend).strip().lower()
+        if backend not in self.VALID_VIDEO_BACKENDS:
+            raise ValueError(
+                f"Unsupported VIDEO_BACKEND={backend!r}; choose from "
+                f"{sorted(self.VALID_VIDEO_BACKENDS)}"
+            )
+        self.video.backend = backend
 
         # Voice configuration from environment
-        self.voice.enabled = os.getenv("VOICE_ENABLED", "false").lower() == "true"
+        self.voice.enabled = self._env_bool("VOICE_ENABLED", False)
         self.voice.device_id = int(os.getenv("VOICE_GPU", "0"))
-        self.voice.smart_turn_enabled = (
-            os.getenv("SMART_TURN_ENABLED", "true").lower() == "true"
-        )
+        self.voice.smart_turn_enabled = self._env_bool("SMART_TURN_ENABLED", True)
         self.voice.smart_turn_onnx_path = os.getenv(
             "SMART_TURN_ONNX_PATH", self.voice.smart_turn_onnx_path
         )
         self.voice.parakeet_device = f"cuda:{self.voice.device_id}"
 
-        # Video configuration from environment
-        self.video.enabled = os.getenv("VIDEO_ENABLED", "true").lower() == "true"
+        # Video configuration from environment. The legacy S2V pipeline is
+        # portrait-first; the TI2V conversational backend defaults to 832x480.
+        self.video.enabled = self._env_bool("VIDEO_ENABLED", True)
+        default_width = (
+            832 if backend == "ti2v5b_musetalk" else self.video.frame_width
+        )
+        default_height = (
+            480 if backend == "ti2v5b_musetalk" else self.video.frame_height
+        )
+        self.video.frame_width = int(
+            os.getenv("VIDEO_FRAME_WIDTH", str(default_width))
+        )
+        self.video.frame_height = int(
+            os.getenv("VIDEO_FRAME_HEIGHT", str(default_height))
+        )
+
+        # WanMuse sidecar and transport settings
+        self.wanmuse.frame_endpoint = os.getenv(
+            "WAN_FRAME_ENDPOINT", self.wanmuse.frame_endpoint
+        )
+        self.wanmuse.frame_topic = os.getenv(
+            "WAN_FRAME_TOPIC", self.wanmuse.frame_topic
+        )
+        self.wanmuse.frame_poll_timeout_ms = int(
+            os.getenv(
+                "WAN_FRAME_POLL_TIMEOUT_MS",
+                str(self.wanmuse.frame_poll_timeout_ms),
+            )
+        )
+        self.wanmuse.max_frame_age_seconds = float(
+            os.getenv(
+                "WAN_FRAME_MAX_AGE_SECONDS",
+                str(self.wanmuse.max_frame_age_seconds),
+            )
+        )
+        self.wanmuse.musetalk_url = os.getenv(
+            "MUSETALK_URL", self.wanmuse.musetalk_url
+        )
+        self.wanmuse.musetalk_timeout_seconds = float(
+            os.getenv(
+                "MUSETALK_TIMEOUT_SECONDS",
+                str(self.wanmuse.musetalk_timeout_seconds),
+            )
+        )
+        self.wanmuse.musetalk_token = os.getenv("MUSE_TALK_TOKEN", "")
+        self.wanmuse.output_fps = int(
+            os.getenv("MUSETALK_OUTPUT_FPS", str(self.wanmuse.output_fps))
+        )
+        if not 1 <= self.wanmuse.output_fps <= 60:
+            raise ValueError("MUSETALK_OUTPUT_FPS must be between 1 and 60")
+        self.wanmuse.face_bbox = os.getenv("WANMUSE_FACE_BBOX", "")
+        self.wanmuse.audio_segment_seconds = float(
+            os.getenv(
+                "WANMUSE_AUDIO_SEGMENT_SECONDS",
+                str(self.wanmuse.audio_segment_seconds),
+            )
+        )
+        if self.wanmuse.audio_segment_seconds <= 0:
+            raise ValueError("WANMUSE_AUDIO_SEGMENT_SECONDS must be positive")
+        self.wanmuse.jpeg_quality = int(
+            os.getenv("WANMUSE_JPEG_QUALITY", str(self.wanmuse.jpeg_quality))
+        )
+        self.wanmuse.strict = self._env_bool("WANMUSE_STRICT", False)
+
+        if self.video.backend == "ti2v5b_musetalk":
+            self.video.fps = self.wanmuse.output_fps
+            self.lip_sync.fps = self.wanmuse.output_fps
+            desired_samples = max(
+                1,
+                round(self.audio.sample_rate * self.wanmuse.audio_segment_seconds),
+            )
+            self.lip_sync.audio_segment_length = max(
+                1, round(desired_samples / 1000)
+            )
+            self.audio_segment_samples = desired_samples
+            self.audio_samples_per_video_block = desired_samples
+            self.lip_sync.audio_min_length = max(
+                1, round(self.wanmuse.audio_segment_seconds * self.video.fps)
+            )
+        else:
+            self.video.fps = int(os.getenv("VIDEO_FPS", str(self.video.fps)))
+            self.lip_sync.fps = self.video.fps
+            self.audio_samples_per_video_block = round(
+                self.audio.sample_rate
+                / self.video.fps
+                * self.lip_sync.dit_config.num_frame_per_block
+                * 4
+            )  # in audio samples, (4 for vae)
+            self.lip_sync.audio_min_length = (
+                4 * self.lip_sync.dit_config.num_frame_per_block
+            )  # in frames, (4 for vae)
+            self.audio_segment_samples = 1000 * self.lip_sync.audio_segment_length
 
 
 config = Config()
