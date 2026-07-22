@@ -4,9 +4,29 @@ import unittest
 
 import numpy as np
 
+from core.audio_pcm import decode_pcm16_base64
 from core.wanmuse.frame_source import LatestFrameStore
 from core.wanmuse.musetalk_client import MuseTalkClientError, parse_render_response
 from core.wanmuse.settings import parse_face_bbox
+
+
+class Pcm16DecoderTests(unittest.TestCase):
+    def test_decodes_little_endian_pcm16(self):
+        raw = np.array([-32768, 0, 16384, 32767], dtype="<i2").tobytes()
+        decoded = decode_pcm16_base64(base64.b64encode(raw).decode("ascii"))
+        np.testing.assert_allclose(
+            decoded,
+            np.array([-1.0, 0.0, 0.5, 32767 / 32768], dtype=np.float32),
+        )
+
+    def test_rejects_invalid_base64(self):
+        with self.assertRaises(ValueError):
+            decode_pcm16_base64("%%3")
+
+    def test_rejects_odd_byte_count(self):
+        value = base64.b64encode(b"abc").decode("ascii")
+        with self.assertRaises(ValueError):
+            decode_pcm16_base64(value)
 
 
 class LatestFrameStoreTests(unittest.TestCase):
