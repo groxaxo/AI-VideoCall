@@ -153,20 +153,29 @@ class Config:
         )
         self.voice.parakeet_device = f"cuda:{self.voice.device_id}"
 
-        # Video configuration from environment
+        # Video configuration from environment. The legacy S2V pipeline is
+        # portrait-first; the TI2V conversational backend defaults to 832x480.
         self.video.enabled = self._env_bool("VIDEO_ENABLED", True)
+        default_width = (
+            832 if backend == "ti2v5b_musetalk" else self.video.frame_width
+        )
+        default_height = (
+            480 if backend == "ti2v5b_musetalk" else self.video.frame_height
+        )
         self.video.frame_width = int(
-            os.getenv("VIDEO_FRAME_WIDTH", str(self.video.frame_width))
+            os.getenv("VIDEO_FRAME_WIDTH", str(default_width))
         )
         self.video.frame_height = int(
-            os.getenv("VIDEO_FRAME_HEIGHT", str(self.video.frame_height))
+            os.getenv("VIDEO_FRAME_HEIGHT", str(default_height))
         )
 
         # WanMuse sidecar and transport settings
         self.wanmuse.frame_endpoint = os.getenv(
             "WAN_FRAME_ENDPOINT", self.wanmuse.frame_endpoint
         )
-        self.wanmuse.frame_topic = os.getenv("WAN_FRAME_TOPIC", self.wanmuse.frame_topic)
+        self.wanmuse.frame_topic = os.getenv(
+            "WAN_FRAME_TOPIC", self.wanmuse.frame_topic
+        )
         self.wanmuse.frame_poll_timeout_ms = int(
             os.getenv(
                 "WAN_FRAME_POLL_TIMEOUT_MS",
@@ -215,9 +224,10 @@ class Config:
                 1,
                 round(self.audio.sample_rate * self.wanmuse.audio_segment_seconds),
             )
-            # ModelHandler historically stores segment length in thousands of
-            # samples. Preserve that contract while using a time-based setting.
-            self.lip_sync.audio_segment_length = max(1, round(desired_samples / 1000))
+            self.lip_sync.audio_segment_length = max(
+                1, round(desired_samples / 1000)
+            )
+            self.audio_segment_samples = desired_samples
             self.audio_samples_per_video_block = desired_samples
             self.lip_sync.audio_min_length = max(
                 1, round(self.wanmuse.audio_segment_seconds * self.video.fps)
@@ -234,6 +244,7 @@ class Config:
             self.lip_sync.audio_min_length = (
                 4 * self.lip_sync.dit_config.num_frame_per_block
             )  # in frames, (4 for vae)
+            self.audio_segment_samples = 1000 * self.lip_sync.audio_segment_length
 
 
 config = Config()
