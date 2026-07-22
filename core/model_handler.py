@@ -9,7 +9,7 @@ import torch
 import torchaudio
 
 from config.config import config as service_config
-from core.lip_sync import LipSyncManager
+from core.lip_sync_factory import create_lip_sync_manager
 from core.tts_pipeline import TTSPipeline
 from core.utils import encode_audio_to_base64
 
@@ -21,7 +21,9 @@ class ModelHandler:
         self.vae_idle_event = asyncio.Event()
         self.vae_idle_event.set()
 
-        self.lip_sync_manager = LipSyncManager(vae_idle_event=self.vae_idle_event)
+        self.lip_sync_manager = create_lip_sync_manager(
+            vae_idle_event=self.vae_idle_event
+        )
         self.tts_pipeline = TTSPipeline(vae_idle_event=self.vae_idle_event)
 
         self.audio_count = 0
@@ -62,7 +64,6 @@ class ModelHandler:
         if audio_base64 and len(audio_base64) < 100:
             logger.warning("Possibly invalid audio")
             audio_base64 = None
-        chunk_count = 0
         self.websocket = websocket
 
         try:
@@ -97,10 +98,8 @@ class ModelHandler:
         logger.info("Starting audio processing task")
         ready_event.set()
         while True:
-            audio = None
             audio_list = []
             audio_segment_id = 0
-            chunk_count = 0
             try:
                 while True:
                     await asyncio.sleep(0)
@@ -115,12 +114,11 @@ class ModelHandler:
                     current_audio_bytes = base64.b64decode(chunk["audio_base64"])
                     sample_rate = chunk["sample_rate"]
                     chunk_id = chunk["chunk_id"]
-                    enqueue_time = chunk["time"]
                     logger.info("Audio chunk %d decoded" % chunk_id)
 
                     await asyncio.sleep(0)
                     await self.vae_idle_event.wait()
-                    current_audio, sr = torchaudio.load(
+                    current_audio, _ = torchaudio.load(
                         current_audio_bytes, format="s16le"
                     )
                     current_audio = current_audio.to("cuda")
@@ -146,7 +144,7 @@ class ModelHandler:
                     else:
                         audio_list.append(current_audio_16k)
 
-                    while sum([x.shape[-1] for x in audio_list]) >= (
+                    while sum(x.shape[-1] for x in audio_list) >= (
                         self.audio_chunk_sizes[
                             min(audio_segment_id, len(self.audio_chunk_sizes) - 1)
                         ]
@@ -157,8 +155,8 @@ class ModelHandler:
                         audio_segment_id += 1
                         tmp_audio = torch.cat(audio_list, dim=-1)
                         chunk_audio = tmp_audio[..., : self.audio_chunk_length]
-                        audio = tmp_audio[..., self.audio_chunk_length :]
-                        audio_list = [audio]
+                        remaining_audio = tmp_audio[..., self.audio_chunk_length :]
+                        audio_list = [remaining_audio]
 
                         await asyncio.sleep(0)
                         await self.vae_idle_event.wait()
@@ -171,9 +169,7 @@ class ModelHandler:
                             }
                         )
 
-                    chunk_count += 1  # audio chunk
-
-                if sum([x.shape[-1] for x in audio_list]) > 0:
+                if sum(x.shape[-1] for x in audio_list) > 0:
                     await asyncio.sleep(0)
                     await self.vae_idle_event.wait()
                     tmp_audio = torch.cat(audio_list, dim=-1)
@@ -187,7 +183,7 @@ class ModelHandler:
                 await self._process_audio_chunk(None)
 
             except Exception as e:
-                logger.exception("Exception in process_audio: {e}")
+                logger.exception(f"Exception in process_audio: {e}")
                 logger.exception(traceback.format_exc())
 
     async def _process_audio_chunk(self, audio_data):
@@ -195,7 +191,6 @@ class ModelHandler:
         await self.vae_idle_event.wait()
         try:
             if audio_data is None:
-                audio_base64 = None
                 await self.lip_sync_manager.process_audio_chunk(None, None)
             else:
                 audio_base64 = audio_data.get("audio_base64", "")
