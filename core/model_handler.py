@@ -28,7 +28,7 @@ class ModelHandler:
 
         self.audio_count = 0
 
-        self.audio_chunk_length = 1000 * service_config.lip_sync.audio_segment_length
+        self.audio_chunk_length = service_config.audio_segment_samples
         self.text_input_queue = asyncio.Queue(16)
         self.audio_chunk_queue = asyncio.Queue(64)  # audio output chunk
 
