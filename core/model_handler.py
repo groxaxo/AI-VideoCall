@@ -1,5 +1,4 @@
 import asyncio
-import base64
 import logging
 import time
 import traceback
@@ -9,6 +8,7 @@ import torch
 import torchaudio
 
 from config.config import config as service_config
+from core.audio_pcm import decode_pcm16_base64
 from core.lip_sync_factory import create_lip_sync_manager
 from core.tts_pipeline import TTSPipeline
 from core.utils import encode_audio_to_base64
@@ -111,17 +111,16 @@ class ModelHandler:
 
                     await asyncio.sleep(0)
                     await self.vae_idle_event.wait()
-                    current_audio_bytes = base64.b64decode(chunk["audio_base64"])
-                    sample_rate = chunk["sample_rate"]
+                    pcm16 = decode_pcm16_base64(chunk["audio_base64"])
+                    sample_rate = int(chunk["sample_rate"])
+                    if sample_rate <= 0:
+                        raise ValueError("audio sample rate must be positive")
                     chunk_id = chunk["chunk_id"]
                     logger.info("Audio chunk %d decoded" % chunk_id)
 
                     await asyncio.sleep(0)
                     await self.vae_idle_event.wait()
-                    current_audio, _ = torchaudio.load(
-                        current_audio_bytes, format="s16le"
-                    )
-                    current_audio = current_audio.to("cuda")
+                    current_audio = torch.from_numpy(pcm16).unsqueeze(0).to("cuda")
 
                     await asyncio.sleep(0)
                     await self.vae_idle_event.wait()
